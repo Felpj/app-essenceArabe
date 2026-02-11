@@ -3,6 +3,7 @@ import { Star, Eye, MessageCircle, Plus, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Product } from "@/data/products";
 import { cn } from "@/lib/utils";
+import { AddToCartButton } from "@/components/commerce/AddToCartButton";
 
 interface ProductCardProps {
   product: Product;
@@ -178,17 +179,14 @@ const ProductCard = ({ product, onQuickView, index = 0 }: ProductCardProps) => {
                   >
                     Ver detalhes
                   </Button>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="flex-shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Add to cart logic
-                    }}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <AddToCartButton
+                      product={product}
+                      variant="secondary"
+                      size="icon"
+                      className="flex-shrink-0"
+                    />
+                  </div>
                 </div>
               </>
             )}

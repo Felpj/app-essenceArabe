@@ -1,0 +1,303 @@
+# FRONT_UPSELL_UI.md — Upsell & Cross-sell (UI) — Essence Árabe
+
+> Objetivo: Aumentar ticket médio e conversão com **upsell/cross-sell** em pontos-chave do funil.
+> Escopo: Somente **interface + regras locais (mock)**. Integração real com backend depois.
+
+---
+
+## 0) Onde vamos aplicar upsell (pontos do funil)
+
+1) **PDP** (página do produto): “Compre junto”, “Tamanho maior”, “Mais vendido”
+2) **Carrinho**: order bump + bundles + barra de frete grátis
+3) **Checkout** (antes do pagamento): 1 oferta simples (sem distrair)
+4) **Pós-compra** (Thank you / Order Success): “Oferta relâmpago 10 min”
+5) **WhatsApp** (pré-formatado): mensagens de “recuperação” e “oferta complementar”
+
+---
+
+## 1) Tipos de oferta (MVP)
+
+### 1.1 Order Bump (1 clique no carrinho/checkout)
+- Ex: “Leve um decant 10ml com 15% OFF”
+- Regras:
+  - só 1 bump por pedido
+  - aparece quando carrinho ≥ R$ X (mock)
+  - adiciona item automaticamente no cart draft
+
+### 1.2 Bundle (kit)
+- Ex: “Kit Doces Árabe (Khamrah + Eclair) — economize R$ 29”
+- Regras:
+  - bundle define preço fixo (mock)
+  - exibe “economia” comparando com soma avulsa
+
+### 1.3 Upgrade de variante (tamanho maior)
+- Ex: 100ml → 150ml “por +R$ 39”
+- Regras:
+  - aparece na PDP e no carrinho quando item elegível
+
+### 1.4 Frete progressivo (barra)
+- Ex: “Faltam R$ 48 para Frete Grátis”
+- Regras:
+  - limiar configurável `freeShippingThreshold`
+
+### 1.5 Pós-compra (one-time offer / OTO)
+- Ex: “Adicionar +1 perfume com 10% OFF (vale por 10 min)”
+- Regras:
+  - só 1 OTO por pedido
+  - expira por timer
+  - botão “Adicionar ao pedido” (no MVP, vira novo pedido draft ou “pedido complementar” local)
+
+---
+
+## 2) Rotas e Páginas impactadas
+
+- `/produto/:slug` (PDP)
+- `/carrinho`
+- `/checkout` (step review)
+- `/pedido/sucesso/:orderCode` (thank you)
+- (opcional) `/oferta/:campaignSlug` (landing de campanha)
+
+---
+
+## 3) Modelos (Front-only)
+
+Criar `src/types/upsell.ts`
+
+### 3.1 UpsellOffer
+- `id: string`
+- `type: 'ORDER_BUMP' | 'BUNDLE' | 'UPGRADE' | 'POST_PURCHASE'`
+- `title: string`
+- `subtitle?: string`
+- `productIds: string[]` (ou SKUs)
+- `discountType?: 'PERCENT' | 'FIXED'`
+- `discountValue?: number`
+- `fixedBundlePrice?: number`
+- `eligibility: { minCartTotal?: number; requiresProductId?: string; excludeIfInCart?: string[] }`
+- `priority: number`
+- `ui: { badge?: string; image?: string; ctaText: string }`
+
+Persistência:
+- `EA_UPSELL_CONFIG_V1` (mock config)
+- `EA_UPSELL_EVENTS_V1` (eventos)
+
+### 3.2 UpsellEvent (telemetria local)
+- `ts: string`
+- `sessionId: string`
+- `offerId: string`
+- `action: 'IMPRESSION' | 'CLICK' | 'ACCEPT' | 'DECLINE'`
+- `context: 'PDP' | 'CART' | 'CHECKOUT' | 'THANK_YOU'`
+- `orderCode?: string`
+- `cartValue?: number`
+
+---
+
+## 4) Componentes (UI)
+
+### 4.1 UpsellShelf (PDP / Carrinho)
+Arquivo: `src/components/upsell/UpsellShelf.tsx`
+
+Props:
+- `context`
+- `cart`
+- `currentProductId?`
+
+Render:
+- cards horizontais (scroll)
+- cada card: imagem, nome, inspiração (texto curto), preço, CTA “Adicionar”
+
+Regra MVP:
+- pega top N ofertas ordenadas por `priority` e `eligibility`
+
+---
+
+### 4.2 OrderBumpCard (Carrinho/Checkout)
+Arquivo: `src/components/upsell/OrderBumpCard.tsx`
+
+Layout:
+- checkbox grande “Adicionar”
+- preço riscado + preço com desconto
+- microcopy: “Entrega junto no mesmo pacote”
+
+Ação:
+- ao marcar, adiciona item no cart
+- registra `UpsellEvent: ACCEPT`
+
+---
+
+### 4.3 BundleCard (Carrinho)
+Arquivo: `src/components/upsell/BundleCard.tsx`
+
+Exibir:
+- itens do kit
+- economia (badge)
+- CTA “Adicionar kit”
+
+---
+
+### 4.4 FreeShippingProgress (Carrinho)
+Arquivo: `src/components/upsell/FreeShippingProgress.tsx`
+
+- progress bar simples
+- texto dinâmico conforme total
+
+---
+
+### 4.5 PostPurchaseOfferModal (Thank You)
+Arquivo: `src/components/upsell/PostPurchaseOfferModal.tsx`
+
+- modal com timer (10:00)
+- CTA primária “Adicionar com desconto”
+- CTA secundária “Não, obrigado”
+- aviso: “Oferta única desta compra”
+
+MVP:
+- se “aceitar”: cria “pedido complementar” local ou adiciona ao `EA_CUSTOMER_ORDERS_V1` como `UPSELL_CHILD_ORDER`
+- (futuro) API: `POST /orders/:id/post-purchase-offer/accept`
+
+---
+
+## 5) Regras canônicas (MVP pragmático)
+
+### 5.1 Limitar fricção
+- Checkout: no máximo **1 oferta** (Order Bump).
+- Carrinho: pode ter shelf + bundle + barra frete (sem excesso).
+
+### 5.2 Evitar ofertas irrelevantes
+- Se carrinho já tem o produto, não oferecer.
+- Preferir complementaridade por “família olfativa” (mock tags):
+  - doce / amadeirado / fresco / especiado / âmbar
+
+### 5.3 Guardrails de margem (UI-ready)
+- Oferta só aparece se `estimatedMargin >= minMargin`
+- MVP: `minMargin` fixo no config
+- (futuro) margem vem da API
+
+---
+
+## 6) Copy/UX (mensagens prontas)
+
+Badges:
+- “Mais vendido”
+- “Combina com Khamrah”
+- “Oferta relâmpago”
+- “Economize R$ X”
+
+CTAs:
+- “Adicionar ao carrinho”
+- “Adicionar com desconto”
+- “Quero esse combo”
+- “Garantir agora”
+
+Microcopy:
+- “Enviamos em até 24h”
+- “Embalagem premium”
+- “Perfume inspirado em fragrâncias famosas”
+
+---
+
+## 7) WhatsApp (recuperação + upsell)
+
+Criar helper: `src/lib/whatsapp.ts`
+
+Templates:
+1) Carrinho abandonado:
+- “Vi que você quase finalizou seu pedido. Quer que eu gere um cupom?”
+
+2) Pós-compra:
+- “Seu pedido foi confirmado ✅ Quer aproveitar uma oferta complementar com desconto hoje?”
+
+MVP:
+- botões “Falar no WhatsApp” que abrem link com mensagem pronta.
+
+---
+
+## 8) Métricas (front event tracking)
+
+Eventos mínimos:
+- `upsell_impressions_total{context,offerId}`
+- `upsell_accept_rate{context,offerId}`
+- `bundle_attach_rate`
+- `order_bump_attach_rate`
+- `aov` (ticket médio — no MVP, calculado local)
+
+No MVP:
+- só salva em `localStorage` para análise manual
+- (futuro) enviar para backend/analytics
+
+---
+
+## 9) Checklist (DoD)
+
+- [x] UpsellShelf em PDP e Carrinho
+  - [x] Componente criado com scroll horizontal
+  - [x] Integrado na ProductPage (PDP)
+  - [x] Integrado no Cart
+  - [x] Filtra ofertas elegíveis por contexto
+- [x] OrderBumpCard no Carrinho e no Checkout
+  - [x] Componente com checkbox e preço com desconto
+  - [x] Integrado no Cart
+  - [x] Integrado no Checkout (step de revisão)
+  - [x] Adiciona item automaticamente ao marcar
+- [x] BundleCard no Carrinho
+  - [x] Componente com produtos do kit
+  - [x] Exibe economia calculada
+  - [x] Integrado no Cart
+- [x] FreeShippingProgress no Carrinho
+  - [x] Barra de progresso dinâmica
+  - [x] Mensagem quando frete grátis alcançado
+  - [x] Integrado no Cart
+- [x] PostPurchaseOfferModal na tela de sucesso
+  - [x] Modal com timer countdown (10 minutos)
+  - [x] Aparece automaticamente após 2 segundos
+  - [x] Integrado no OrderSuccess
+- [x] Regras básicas de elegibilidade funcionando
+  - [x] Verifica valor mínimo do carrinho
+  - [x] Exclui produtos já no carrinho
+  - [x] Filtra por contexto (PDP, CART, CHECKOUT, THANK_YOU)
+  - [x] Ordena por prioridade
+- [x] Registro de UpsellEvents em localStorage
+  - [x] Tracking de impressões, cliques, aceites e recusas
+  - [x] Função para calcular métricas
+  - [x] Persistência em `EA_UPSELL_EVENTS_V1`
+- [x] Links de WhatsApp com templates
+  - [x] Helper para gerar links do WhatsApp
+  - [x] Templates para carrinho abandonado e pós-compra
+  - [x] Função para abrir WhatsApp com mensagem pré-formatada
+
+---
+
+## 10) Status de Implementação
+
+**Data de conclusão:** Janeiro 2025
+
+### ✅ Implementado
+
+- **Tipos:** `src/types/upsell.ts` com UpsellOffer, UpsellEvent, UpsellConfig
+- **Dados Mock:** `src/data/upsellOffers.ts` com ofertas de order bump, bundles e post-purchase
+- **Tracking:** `src/lib/upsellTracking.ts` para eventos de upsell
+- **WhatsApp:** `src/lib/whatsapp.ts` com templates de mensagens
+- **Componentes:**
+  - `FreeShippingProgress` - Barra de progresso para frete grátis
+  - `OrderBumpCard` - Card de oferta com checkbox
+  - `BundleCard` - Card de kit com economia
+  - `UpsellShelf` - Shelf horizontal de produtos relacionados
+  - `PostPurchaseOfferModal` - Modal com timer para oferta pós-compra
+- **Integrações:**
+  - ProductPage: UpsellShelf na PDP
+  - Cart: FreeShippingProgress, OrderBumpCard, BundleCard, UpsellShelf
+  - Checkout: OrderBumpCard no step de revisão
+  - OrderSuccess: PostPurchaseOfferModal automático
+
+### 📝 Observações
+
+- Todas as ofertas são mockadas e elegíveis baseadas em regras locais
+- Tracking de eventos salvo em localStorage para análise futura
+- Timer do PostPurchaseOfferModal expira após 10 minutos
+- FreeShippingProgress calcula progresso baseado em threshold configurável
+- Regras de elegibilidade evitam ofertas duplicadas ou irrelevantes
+
+---
+
+## 11) Próximo .md
+
+`FRONT_CHECKOUT_UI.md` — Checkout "coisa fina": steps, autofill, endereço, pagamento (UI), confirmação e sucesso. *(Já implementado anteriormente)*

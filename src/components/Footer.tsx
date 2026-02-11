@@ -13,7 +13,7 @@ const Footer = () => {
                 ESSENCE
               </span>
               <span className="font-display text-2xl font-light text-foreground">
-                Arabia
+                Arabe
               </span>
             </Link>
             <p className="text-muted-foreground font-body text-sm max-w-sm">
@@ -80,7 +80,7 @@ const Footer = () => {
         {/* Bottom */}
         <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm font-body">
-            © 2024 Essence Arabia. Todos os direitos reservados.
+            © 2024 Essence Arabe. Todos os direitos reservados.
           </p>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-sm font-body">

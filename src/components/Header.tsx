@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ShoppingBag, Search } from "lucide-react";
 import { Button } from "./ui/button";
+import { useCartStore } from "@/store/cart.store";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const totalItems = useCartStore((state) => state.getTotalItems());
 
   const navLinks = [
     { href: "/", label: "Início" },
@@ -24,7 +27,7 @@ const Header = () => {
               ESSENCE
             </span>
             <span className="font-display text-xl md:text-2xl font-light text-foreground">
-              Arabia
+              Arabe
             </span>
           </Link>
 
@@ -50,11 +53,16 @@ const Header = () => {
             <button className="text-muted-foreground hover:text-primary transition-colors">
               <Search className="w-5 h-5" />
             </button>
-            <button className="relative text-muted-foreground hover:text-primary transition-colors">
+            <button
+              onClick={() => navigate("/carrinho")}
+              className="relative text-muted-foreground hover:text-primary transition-colors"
+            >
               <ShoppingBag className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-                0
-              </span>
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {totalItems > 99 ? "99+" : totalItems}
+                </span>
+              )}
             </button>
           </div>
 
@@ -96,11 +104,19 @@ const Header = () => {
                 <button className="text-foreground">
                   <Search className="w-5 h-5" />
                 </button>
-                <button className="relative text-foreground">
+                <button
+                  onClick={() => {
+                    navigate("/carrinho");
+                    setIsMenuOpen(false);
+                  }}
+                  className="relative text-foreground"
+                >
                   <ShoppingBag className="w-5 h-5" />
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-                    0
-                  </span>
+                  {totalItems > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {totalItems > 99 ? "99+" : totalItems}
+                    </span>
+                  )}
                 </button>
               </div>
             </nav>
